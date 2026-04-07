@@ -1,0 +1,81 @@
+services:
+  postgres:
+    image: postgres:14.3
+    restart: always
+    ports:
+      - "${POSTGRES_PORT}:5432"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - ./postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7
+    command: redis-server --appendonly yes
+    ports:
+      - "${REDIS_PORT}:6379"
+    volumes:
+      - redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s  
+      retries: 5
+
+  service-b:
+    build:
+      context: ./service-b
+      dockerfile: Dockerfile
+    ports:
+      - "${SERVICE_B_PORT}:3000"
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      - REDIS_HOST=${REDIS_HOST}
+      - REDIS_PORT=${REDIS_PORT}
+      - MOCK_C_URL=${MOCK_C_URL}
+      - PORT=${SERVICE_B_PORT}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./service-b:/app
+      - /app/node_modules
+
+  mock-c:
+    build:
+      context: ./mock-c
+      dockerfile: Dockerfile  
+    ports:
+      - "${MOCK_C_PORT}:3001"
+    environment:
+      - PORT=${MOCK_C_PORT}
+    volumes:
+      - ./mock-c:/app
+      - /app/node_modules
+
+  mock-a:
+    build:
+      context: ./mock-a
+      dockerfile: Dockerfile
+    ports:
+      - "${MOCK_A_PORT}:3002"
+    environment:
+      - PORT=${MOCK_A_PORT}
+      - SERVICE_B_URL=${SERVICE_B_URL}
+    depends_on:
+      - service-b
+    volumes:
+      - ./mock-a:/app
+      - /app/node_modules
+
+volumes:
+  redis:
