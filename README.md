@@ -22,7 +22,9 @@ curl -s http://localhost:3000/messages
 
 ```bash
 # Tests unitarios
-cd service-b && npm test
+cd service-b
+npm i
+npm test
 ```
 
 ## API Endpoints
